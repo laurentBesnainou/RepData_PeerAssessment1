@@ -1,0 +1,98 @@
+---
+title: "Personal activity monitoring device"
+author: "L. Besnainou"
+date: "21 février 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r readingFile}
+# Reading the data
+activity <- read.csv("activity.csv",na.strings = "NA")
+```
+
+## Histogram of the total number of steps taken each day
+
+```{r First_Plot}
+#Transform the date column in a valide date format
+activity$date <- ymd(activity$date)
+#Make the histogram plot in ggplot2
+ActivityDay <- activity %>% group_by(date) %>% summarize(numb=sum(steps,na.rm = TRUE))
+qplot(numb, data=ActivityDay, main="Total number of steps by the day ", 
+      xlab="Number of steps done in a day", ylab="Frenquency", color="red", fill="red")+ theme(legend.position="none")
+
+```
+
+## Calculate the Mean and median number of steps by day
+as a lot of measurements of steps are 0 the median value is always 0
+```{r Mean and Median}
+summary(ActivityDay$numb)
+```
+
+
+## Time series plot of the average number of steps taken
+```{r, timeserieplot}
+activity %>% group_by(interval) %>% summarize(mean=mean(steps,na.rm = T)) %>% ggplot(aes(interval, mean)) + geom_line(colour = "red") + ggtitle ("Average number of steps taken")
+
+```
+
+##The 5-minute interval that, on average, contains the maximum number of steps
+
+```{r}
+IntervalAvg <- activity %>% group_by(interval) %>% summarise(mean=mean(steps,na.rm = T))
+MaxInterval <- IntervalAvg[max(IntervalAvg$mean)==IntervalAvg$mean,]
+```
+The interval is <span style="color:red">`r MaxInterval[1,1]`</span> with an average number of steps <span style="color:red">`r MaxInterval[1,2]`</span>
+
+##Code to describe and show a strategy for imputing missing data
+
+The missing values for the steps will be replace by the average value  for the same interval (calculated in IntervalAvg R variable)
+```{r}
+#A left join will be made on dataframe Activity
+activityNew <- left_join(activity,IntervalAvg,by = c("interval"))
+activityNew$steps <-  ifelse(is.na(activityNew$steps), activityNew$mean, activityNew$steps)
+
+```
+
+
+## Histogram of the total number of steps taken each day after missing values are imputed
+
+```{r }
+#Display the graph for comparaison
+ActivityDay <- activity %>% group_by(date) %>% summarize(numb=sum(steps,na.rm = TRUE))
+
+
+ActivityDayNew <- activityNew %>% group_by(date) %>% summarize(numb=sum(steps,na.rm = TRUE))
+
+ 
+ ggplot(data=ActivityDayNew, aes(numb))+
+     geom_histogram(color="blue", fill = "blue", alpha = 0.5) +
+        geom_histogram(data=ActivityDay,aes(numb),color="red", fill = NA,alpha = 0.4)+
+        
+      ggtitle ("Total number of steps by day (with NA replacement in blue)")+
+     xlab("Number of steps done in a day")
+
+```
+
+##Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+```{r facet,fig.width = 14, fig.height = 9, out.width = "800", out.height = "600"}
+#set weekday and week-end
+activity$weekday <- weekdays(activity$date)
+activity$wday <- wday(activity$date) %in% c(1,7)
+activity$wday <-factor (activity$wday)
+levels(activity$wday) <- c("weekday", "week-end")
+p <- activity %>% group_by(interval,wday) %>% summarise(mean=mean(steps,na.rm = T)) %>%
+ggplot(aes(interval,mean,color=wday)) +
+  geom_line(show.legend=F,size=2)
+p +  facet_wrap(~ wday)
+```
+
+
